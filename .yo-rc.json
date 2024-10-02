@@ -1,0 +1,21 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "16.20.2",
+    "sdksVersions": {
+      "@microsoft/microsoft-graph-client": "3.0.2",
+      "@microsoft/teams-js": "2.12.0"
+    },
+    "version": "1.19.0",
+    "libraryName": "clock-in-clock-out",
+    "libraryId": "650a17c7-4ec9-4085-8900-e965c4b1f1ef",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "clock-in-clock-out",
+    "solutionShortDescription": "clock-in-clock-out description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
