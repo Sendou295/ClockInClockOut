@@ -1,46 +1,42 @@
 import * as React from 'react';
-//import styles from './ClockInOut.module.scss';
-import type { IClockInOutProps } from './IClockInOutProps';
-import { SPFI } from '@pnp/sp';
 import { useEffect, useState } from 'react';
+import { Stack, StackItem } from '@fluentui/react';
+import { SPFI } from '@pnp/sp';
+import { IClockInOutProps } from './IClockInOutProps';
 import { IClockInOut } from '../../../interface';
+import ClockInOutList from './List/ClockInOutList';
+import ClockInOutDialog from './List/ClockInOutDialog';
+import ClockInOutButtons from './List/ClockInOutButtons';
 import { getSP } from '../../../pnpjsConfig';
-import { DefaultButton, DetailsList,SelectionMode , Dialog, DialogFooter, DialogType, IColumn, Label, PrimaryButton, Stack, StackItem } from '@fluentui/react';
-import { format } from 'date-fns';
+import { IColumn } from '@fluentui/react';
 
-
-
-const ClockInOut = (props: IClockInOutProps) => {
-  
-  //const LOG_SOURCE = 'ClockInOut Webpart';
+const ClockInOut: React.FC<IClockInOutProps> = (props) => {
   const LIST_NAME = 'Clock-In/Clock-Out';
   let _sp: SPFI = getSP(props.context);
 
-  const [ClockInOutItems, setClockInOutItems] = useState<IClockInOut[]>([])
+  const [ClockInOutItems, setClockInOutItems] = useState<IClockInOut[]>([]);
+  const [TimeNow, setTime] = useState(new Date().toLocaleTimeString());
+  const [isClockInDisabled, setIsClockInDisabled] = useState(false);
+  const [isClockOutDisabled, setIsClockOutDisabled] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<IClockInOut | null>(null);
+  const [isDialogVisible, setIsDialogVisible] = useState(false);
 
   const getClockInOutItems = async () => {
     try {
       const items = await _sp.web.lists.getByTitle(LIST_NAME).items();
-      setClockInOutItems(
-        items.map((items: any) => ({
-          ID: items.ID,
-          Username: items.Username,
-          Email: items.Email,
-          ClockInTime: items.ClockInTime, // Ensure this is converted to Date
-          ClockOutTime: items.ClockOutTime
-        })).sort((a, b) => b.ID - a.ID)
-      );
+      setClockInOutItems(items.map((item: any) => ({
+        ID: item.ID,
+        Username: item.Username,
+        Email: item.Email,
+        ClockInTime: item.ClockInTime,
+        ClockOutTime: item.ClockOutTime
+      })).sort((a, b) => b.ID - a.ID));
     } catch (error) {
       console.error('Error fetching clock in/out items:', error);
     }
-  }
-  // State to manage button disabled status
-  const [isClockInDisabled, setIsClockInDisabled] = useState(false);
-  const [isClockOutDisabled, setIsClockOutDisabled] = useState(true);
+  };
 
-
-  // Function to handle Clock In button click
-  const handleClockInClick = async (): Promise<void> => {
+  const handleClockInClick = async () => {
     setIsClockInDisabled(true);
     setIsClockOutDisabled(false);
     const currentTime = new Date();
@@ -51,43 +47,27 @@ const ClockInOut = (props: IClockInOutProps) => {
       ClockInTime: currentTime,
       ClockOutTime: currentTime
     };
-  
+
     try {
-      await _sp.web.lists.getByTitle(LIST_NAME).items.add({
-        Username: newEntry.Username,
-        Email: newEntry.Email,
-        ClockInTime: currentTime,
-        ClockOutTime: currentTime
-      });
-      await getClockInOutItems();// Refresh the list after adding
+      await _sp.web.lists.getByTitle(LIST_NAME).items.add(newEntry);
+      await getClockInOutItems();
     } catch (error) {
       alert('Failed to clock in. Please try again.');
     }
   };
 
-  // Function to handle Clock Out button click
-  const handleClockOutClick = async (): Promise<void> => {
+  const handleClockOutClick = async () => {
     setIsClockInDisabled(false);
     setIsClockOutDisabled(true);
-    const currentTime = new Date(); // Get current time as a Date object
+    const currentTime = new Date();
 
-    // Find the entry with the highest ID
-    const highestIdEntry = ClockInOutItems.reduce((prev, current) => {
-      return (prev.ID > current.ID) ? prev : current;
-    });
-    console.log(highestIdEntry)
+    const highestIdEntry = ClockInOutItems.reduce((prev, current) => (prev.ID > current.ID) ? prev : current);
     if (highestIdEntry) {
-      // Update the ClockOutTime for the entry with the highest ID
       try {
         await _sp.web.lists.getByTitle(LIST_NAME).items.getById(highestIdEntry.ID).update({
-          ClockOutTime: currentTime, // Convert to ISO string for SharePoint
+          ClockOutTime: currentTime
         });
-
-
-        // Reset button states
-        await getClockInOutItems(); // Refresh the list after updating
-
-
+        await getClockInOutItems();
       } catch (error) {
         alert('Failed to clock out.');
       }
@@ -95,136 +75,58 @@ const ClockInOut = (props: IClockInOutProps) => {
       alert('No entries found to clock out.');
     }
   };
-  const [TimeNow, setTime] = useState(new Date().toLocaleTimeString());
-  const getCurrentTime = async (): Promise<void> => {
-      setTime(new Date().toLocaleTimeString());
-}
- 
-  useEffect(() => {
-    getClockInOutItems();
 
-    const timer = setInterval(() => {
-      getCurrentTime();
-    }, 1000);
-    // Cleanup the interval when the component unmounts
-    return () => clearInterval(timer);
-
-  }, [])
-  // Function to format the clock in time in the dialog
-  const formatClockInTime = (clockInTimeStr: string): string => {
-    const clockInTime = new Date(clockInTimeStr);
-    if (!isNaN(clockInTime.getTime())) {
-      return format(clockInTime, 'dd/MM/yyyy HH:mm:ss');
-    } else {
-      return clockInTimeStr;
-    }
-  };
-  const formatClockOutTime = (clockOutTimeStr: string): string => {
-    const clockOutTime = new Date(clockOutTimeStr);
-    if (!isNaN(clockOutTime.getTime())) {
-      return format(clockOutTime, 'dd/MM/yyyy HH:mm:ss');
-    } else {
-      return clockOutTimeStr;
-    }
-  };
-  // Define the columns for the table
-  const columns: IColumn[] = [
-    { key: 'column1', name: 'ID', fieldName: 'ID', minWidth: 50, maxWidth: 100, isResizable: true },
-    { key: 'column2', name: 'Username', fieldName: 'Username', minWidth: 100, maxWidth: 200, isResizable: true },
-    { key: 'column3', name: 'Email', fieldName: 'Email', minWidth: 200, maxWidth: 300, isResizable: true },
-    { key: 'column4', name: 'Clock In Time', fieldName: 'ClockInTime', minWidth: 150, maxWidth: 250, isResizable: true, 
-      onRender: (item) => {
-        // Use the formatClockInTime function to format the clock-in time
-        return formatClockInTime(item.ClockInTime);
-      }
-  },
-    {
-      key: 'column5',
-      name: 'Clock Out Time',
-      fieldName: 'ClockOutTime',
-      minWidth: 150,
-      maxWidth: 250,
-      isResizable: true,
-      onRender: (item) => {
-        // Use the formatClockInTime function to format the clock-in time
-        return formatClockOutTime(item.ClockOutTime);
-      }
-    }
-  ];
-
-
-  //Fluent UI Dialog
-  const [selectedItem, setSelectedItem] = useState<IClockInOut | null>(null);
-  const [isDialogVisible, setIsDialogVisible] = useState(false);
-  
-  // Function to handle item selection
   const onItemInvoked = (item: IClockInOut): void => {
     setSelectedItem(item);
     setIsDialogVisible(true);
   };
-  // Function to close the dialog
+
   const closeDialog = (): void => {
     setIsDialogVisible(false);
     setSelectedItem(null);
   };
 
+  useEffect(() => {
+    getClockInOutItems();
+    const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const columns: IColumn[] = [
+    { key: 'column1', name: 'ID', fieldName: 'ID', minWidth: 50, maxWidth: 100, isResizable: true },
+    { key: 'column2', name: 'Username', fieldName: 'Username', minWidth: 100, maxWidth: 200, isResizable: true },
+    { key: 'column3', name: 'Email', fieldName: 'Email', minWidth: 200, maxWidth: 300, isResizable: true },
+    { key: 'column4', name: 'Clock In Time', fieldName: 'ClockInTime', minWidth: 150, maxWidth: 250, isResizable: true,
+      onRender: (item) => new Date(item.ClockInTime).toLocaleString() },
+    { key: 'column5', name: 'Clock Out Time', fieldName: 'ClockOutTime', minWidth: 150, maxWidth: 250, isResizable: true,
+      onRender: (item) => new Date(item.ClockOutTime).toLocaleString() }
+  ];
 
   return (
     <Stack>
-      <StackItem>Hello, {[props.userDisplayName]}</StackItem>
-      <StackItem>Now is: {[TimeNow]}</StackItem>
-      <Dialog
-        hidden={!isDialogVisible}
-        onDismiss={closeDialog}
-        dialogContentProps={{
-          type: DialogType.largeHeader,
-          title: selectedItem ? selectedItem.Username : '',
-          subText: selectedItem ? selectedItem.Email : ''
-        }}
-      >
-          <StackItem>
-          <Label>Clock Out Time: {selectedItem ? formatClockInTime(selectedItem.ClockInTime.toString()) : ''}</Label>
-          <Label>Clock Out Time: {selectedItem ? formatClockInTime(selectedItem.ClockOutTime.toString()) : ''}</Label>
-          </StackItem>
-        <DialogFooter>
-          <PrimaryButton onClick={closeDialog} text="Close" />
-        </DialogFooter>
-      </Dialog>
-      <StackItem >
-        <DefaultButton
-          text="Clock In"
-          id='btnClockIn'
-          onClick={handleClockInClick}
-          disabled={isClockInDisabled}  // Controlled by state
-        />
+      <StackItem>Hello, {props.userDisplayName}</StackItem>
+      <StackItem>Now is: {TimeNow}</StackItem>
 
-        {/* Clock Out Button */}
-        <DefaultButton
-          text="Clock Out"
-          id='btnClockOut'
-          onClick={handleClockOutClick}
-          disabled={isClockOutDisabled}  // Controlled by state
-        />
-      </StackItem>
-      <StackItem>
-        {ClockInOutItems.length > 0 ? (
-          <DetailsList
-            items={ClockInOutItems}
-            columns={columns}
-            setKey="set"
-            selectionMode={SelectionMode.none}
-            layoutMode={0} // Fixed columns layout
-            selectionPreservedOnEmptyClick={true}
-            ariaLabelForSelectionColumn="Toggle selection"
-            checkButtonAriaLabel="select row"
-            onItemInvoked={onItemInvoked} // Handle row click
-          />
-        ) : (
-          <Label>No Clock In/Out data available</Label>
-        )}
-      </StackItem>
+      <ClockInOutButtons
+        handleClockInClick={handleClockInClick}
+        handleClockOutClick={handleClockOutClick}
+        isClockInDisabled={isClockInDisabled}
+        isClockOutDisabled={isClockOutDisabled}
+      />
+
+      <ClockInOutList
+        items={ClockInOutItems}
+        columns={columns}
+        onItemInvoked={onItemInvoked}
+      />
+
+      <ClockInOutDialog
+        selectedItem={selectedItem}
+        isVisible={isDialogVisible}
+        closeDialog={closeDialog}
+      />
     </Stack>
-  )
-}
+  );
+};
 
-export default ClockInOut
+export default ClockInOut;
